@@ -2,10 +2,16 @@
 import json
 import os
 import re  # 正規表現モジュールをインポート
-import requests # FastAPIへのHTTPリクエスト用
+import urllib.request # requestsの代わりに追加
 
+# Lambda コンテキストからリージョンを抽出する関数（今は未使用）
+def extract_region_from_arn(arn):
+    match = re.search('arn:aws:lambda:([^:]+):', arn)
+    if match:
+        return match.group(1)
+    return "us-east-1"  # デフォルト値
 
-# モデル推論サーバーのURL
+# FastAPIのエンドポイントURL
 MODEL_URL = "https://cd61-34-143-183-144.ngrok-free.app" #day1_practice.ipynbのFastAPIを立ち上げ時の公開URL
 
 def lambda_handler(event, context):
@@ -26,14 +32,14 @@ def lambda_handler(event, context):
         print("Processing message:", message)
         print("Using model:", MODEL_URL)
         
-        # # 会話履歴を使用
-        # messages = conversation_history.copy()
+        # 会話履歴の構築
+        messages = conversation_history.copy()
         
-        # # ユーザーメッセージを追加
-        # messages.append({
-        #     "role": "user",
-        #     "content": message
-        # })
+        # ユーザーメッセージを追加
+        messages.append({
+            "role": "user",
+            "content": message
+        })
         
         # # Nova Liteモデル用のリクエストペイロードを構築
         # # 会話履歴を含める
@@ -50,37 +56,26 @@ def lambda_handler(event, context):
         #             "content": [{"text": msg["content"]}]
         #         })
         
-        # invoke_model用のリクエストペイロード
-        # 最新のユーザーメッセージのみ使用（履歴は使わない設計ならここだけでOK）
-        request_payload = {
-            "prompt": message,
-            "max_new_tokens": 512,
-            "do_sample": True,
-            "temperature": 0.7,
-            "top_p": 0.9
-        }
-        
-        print("Sending request to FastAPI model server with payload:", json.dumps(request_payload))
-        
-         # FastAPIへPOSTリクエスト
-        response = requests.post(MODEL_URL, json=request_payload)
+        # FastAPIサーバーへリクエスト送信（urllib使用）
+        request_data = json.dumps({"messages": messages}).encode("utf-8")
+        req = urllib.request.Request(
+            MODEL_URL,
+            data=request_data,
+            headers={"Content-Type": "application/json"}
+        )
 
-        if response.status_code != 200:
-            raise Exception(f"FastAPI server returned status {response.status_code}: {response.text}")
-        
-        response_data = response.json()
+        with urllib.request.urlopen(req) as res:
+            response_body = json.loads(res.read().decode("utf-8"))
+
+        print("FastAPI server response:", json.dumps(response_body, ensure_ascii=False))
         
         # アシスタント(モデルから)の応答を取得
-        assistant_response = response_data.get("generated_text", "")
+        assistant_response = response_body.get("response", "")
         if not assistant_response:
-            raise Exception("No generated_text found in the response")
+            raise Exception("No response content from FastAPI server")
         
         # アシスタントの応答を会話履歴に追加
-        conversation_history.append({
-            "role": "user",
-            "content": message
-        })
-        conversation_history.append({
+        messages.append({
             "role": "assistant",
             "content": assistant_response
         })
@@ -97,7 +92,7 @@ def lambda_handler(event, context):
             "body": json.dumps({
                 "success": True,
                 "response": assistant_response,
-                "conversationHistory": conversation_history
+                "conversationHistory": messages
             })
         }
         
