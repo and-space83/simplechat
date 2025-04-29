@@ -26,59 +26,32 @@ def lambda_handler(event, context):
         
         # リクエストボディの解析
         body = json.loads(event['body'])
-        message = body['message']
-        conversation_history = body.get('conversationHistory', [])
-
-        print("Processing message:", message)
-        print("Using model:", MODEL_URL)
+        prompt = body['prompt']
         
-        # 会話履歴の構築
-        messages = conversation_history.copy()
+        # FastAPIに送信するペイロード
+        request_payload = json.dumps({
+            "prompt": prompt,
+            "max_new_tokens": 512,
+            "do_sample": True,
+            "temperature": 0.7,
+            "top_p": 0.9
+        }).encode("utf-8")
         
-        # ユーザーメッセージを追加
-        messages.append({
-            "role": "user",
-            "content": message
-        })
-        
-        # # Nova Liteモデル用のリクエストペイロードを構築
-        # # 会話履歴を含める
-        # bedrock_messages = []
-        # for msg in messages:
-        #     if msg["role"] == "user":
-        #         bedrock_messages.append({
-        #             "role": "user",
-        #             "content": [{"text": msg["content"]}]
-        #         })
-        #     elif msg["role"] == "assistant":
-        #         bedrock_messages.append({
-        #             "role": "assistant", 
-        #             "content": [{"text": msg["content"]}]
-        #         })
-        
-        # FastAPIサーバーへリクエスト送信（urllib使用）
-        request_data = json.dumps({"messages": messages}).encode("utf-8")
+        # POSTリクエスト送信（method='POST'を明示）
         req = urllib.request.Request(
             MODEL_URL,
-            data=request_data,
-            headers={"Content-Type": "application/json"}
+            data=request_payload,
+            headers={"Content-Type": "application/json"},
+            method="POST"
         )
-
+        
         with urllib.request.urlopen(req) as res:
             response_body = json.loads(res.read().decode("utf-8"))
 
         print("FastAPI server response:", json.dumps(response_body, ensure_ascii=False))
-        
-        # アシスタント(モデルから)の応答を取得
-        assistant_response = response_body.get("response", "")
-        if not assistant_response:
-            raise Exception("No response content from FastAPI server")
-        
-        # アシスタントの応答を会話履歴に追加
-        messages.append({
-            "role": "assistant",
-            "content": assistant_response
-        })
+
+        generated_text = response_body.get("generated_text", "")
+        response_time = response_body.get("response_time", 0)
         
         # 成功レスポンスの返却
         return {
@@ -91,14 +64,13 @@ def lambda_handler(event, context):
             },
             "body": json.dumps({
                 "success": True,
-                "response": assistant_response,
-                "conversationHistory": messages
+                "response": generated_text,
+                "response_time": response_time
             })
         }
         
     except Exception as error:
         print("Error:", str(error))
-        
         return {
             "statusCode": 500,
             "headers": {
