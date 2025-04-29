@@ -12,7 +12,7 @@ def extract_region_from_arn(arn):
     return "us-east-1"  # デフォルト値
 
 # FastAPIのエンドポイントURL
-MODEL_URL = "https://cd61-34-143-183-144.ngrok-free.app" #day1_practice.ipynbのFastAPIを立ち上げ時の公開URL
+MODEL_URL = "https://00f5-35-198-247-4.ngrok-free.app/generate" # day1_practice.ipynbのFastAPIを立ち上げ時の公開URL
 
 def lambda_handler(event, context):
     try:
@@ -42,7 +42,7 @@ def lambda_handler(event, context):
             MODEL_URL,
             data=request_payload,
             headers={"Content-Type": "application/json"},
-            method="POST"
+            method="POST" # 明示的にPOST
         )
         
         with urllib.request.urlopen(req) as res:
@@ -52,6 +52,7 @@ def lambda_handler(event, context):
 
         generated_text = response_body.get("generated_text", "")
         response_time = response_body.get("response_time", 0)
+
         
         # 成功レスポンスの返却
         return {
