@@ -6,7 +6,7 @@ import requests # FastAPIへのHTTPリクエスト用
 
 
 # モデル推論サーバーのURL
-MODEL_URL = "https://d15a-34-16-150-167.ngrok-free.app" #day1_practice.ipynbのFastAPIを立ち上げ時の公開URL
+MODEL_URL = "https://cd61-34-143-183-144.ngrok-free.app" #day1_practice.ipynbのFastAPIを立ち上げ時の公開URL
 
 def lambda_handler(event, context):
     try:
