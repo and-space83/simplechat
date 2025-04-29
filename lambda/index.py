@@ -26,7 +26,11 @@ def lambda_handler(event, context):
         
         # リクエストボディの解析
         body = json.loads(event['body'])
-        prompt = body['prompt']
+        
+        # promptがなければmessageを代用
+        prompt = body.get('prompt') or body.get('message')
+        if not prompt:
+            raise Exception("リクエストに 'prompt' または 'message' フィールドが含まれていません。")
         
         # FastAPIに送信するペイロード
         request_payload = json.dumps({
@@ -50,7 +54,9 @@ def lambda_handler(event, context):
 
         print("FastAPI server response:", json.dumps(response_body, ensure_ascii=False))
 
-        generated_text = response_body.get("generated_text", "")
+        assistant_response = response_body.get("generated_text", "")
+        if not assistant_response:
+            raise Exception("FastAPIサーバーから 'generated_text' を取得できませんでした。")
         response_time = response_body.get("response_time", 0)
 
         
@@ -65,7 +71,7 @@ def lambda_handler(event, context):
             },
             "body": json.dumps({
                 "success": True,
-                "response": generated_text,
+                "response": assistant_response,
                 "response_time": response_time
             })
         }
